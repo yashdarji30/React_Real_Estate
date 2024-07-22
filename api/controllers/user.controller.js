@@ -1,163 +1,161 @@
 import prisma from "../lib/prisma.js";
+import sendResponse from "../lib/responseHelper.js";
 import bcrypt from "bcrypt";
-export const getUsers = async (req,res) =>{
-    try{
-        const users = await prisma.user.findMany();
-        res.status(200).json(users);
+import jwt from "jsonwebtoken";
 
-    }catch(err){
-        console.log(err);
-        res.status(500).json({message: "Failed to get users!"});
-    }
-}
+export const getUsers = async (req, res) => {
+  try {
+    const users = await prisma.user.findMany();
+    sendResponse(res, 200, "successfully fetched users", users);
+  } catch (error) {
+    console.log(error);
+    sendResponse(res, 500, " Failed to get users !");
+  }
+};
 
-export const getUser = async (req,res) =>{
+export const getUser = async (req, res) => {
+  try {
     const id = req.params.id;
+    const user = await prisma.user.findUnique({
+      where: { id },
+    });
+    sendResponse(res, 200, "successfully fetched user", user);
+  } catch (error) {
+    console.log(error);
+    sendResponse(res, 500, " Failed to get user !");
+  }
+};
 
-    try{
-        const user = await prisma.user.findUnique({
-            where:{id},
-        });
-        res.status(200).json(user);
-
-    }catch(err){
-        console.log(err);
-        res.status(500).json({message: "Failed to get users!"});
-    }
-}
-export const  updatedUser = async (req,res) => {
-    const id = req.params.id;
-    const tokenUserId = req.userId;
-    const {password,avatar,...inputs} = req.body;
-
-    if(id !== tokenUserId){
-        return res.status(403).json({message: "Unauthorized!"});
-    }
-
-    let updatePassword = null;
-    try{
-        if(password){
-             updatePassword = await bcrypt.hash(password,10);
-        }
-        const updatdUser = await prisma.user.update({
-            where:{id},
-            data: {
-                ...inputs,
-                ...(updatePassword && { password : updatePassword}),
-                ...(avatar && {avatar}),
-            },
-        });
-         res.status(200).json(updatdUser)
-
-         
-             
-    }
-
-    catch(err){
-        console.log(err);
-        res.status(500).json({message: "Failed to get users!"});
-
-    }
-}
-
-export const deleteUser =async (req,res) => {
+export const updateUsers = async (req, res) => {
+  try {
     const id = req.params.id;
     const tokenUserId = req.userId;
-    if(id !== tokenUserId){
-        return res.status(403).json({message: "Unauthorized!"});
-    }
-    try{
-        await prisma.user.delete({
-            where:{id},
-        });
-        res.status(200).json({message: "User deleted successfully!"});
-        
+    const { password, avatar, ...inputs } = req.body;
 
-    }catch(err){
-        console.log(err);
-        res.status(500).json({message: "Failed to delete users!"});
+    console.log(id);
+    console.log(tokenUserId);
+    if (id !== tokenUserId) {
+      return sendResponse(res, 403, "Not Authorized !");
     }
-}
+    let updatedPassword = null;
+    if (password) {
+      updatedPassword = await bcrypt.hash(password, 10);
+    }
 
-export const savePost =async (req,res) => {
-    const postId = req.body.postId;
+    const updatedUser = await prisma.user.update({
+      where: { id },
+      data: {
+        ...inputs,
+        ...(updatedPassword && { password: updatedPassword }),
+        ...(avatar && { avatar }),
+      },
+    });
+    const { password: userPassword, ...rest } = updatedUser;
+
+    res.status(200).json(rest);
+  } catch (error) {
+    console.log(error);
+    sendResponse(res, 500, " Failed to update user !");
+  }
+};
+
+export const deleteUsers = async (req, res) => {
+  try {
+    const id = req.params.id;
     const tokenUserId = req.userId;
+    const { password, avatar, ...inputs } = req.body;
 
-    
-    try{
-
-        const savedPost = await prisma.user.findUnique({
-            where: {
-                userId_postId: {
-                    userId: tokenUserId,
-                    postId,
-                },
-            },
-        });
-       if(savedPost){
-         await prisma.savedPost.delete({
-            where:{
-                id: savePost.id,
-            },
-         });
-         res.status(200).json({message : "post removed from saved list"});
-       }
-       else{
-        await prisma.savedPost.create({
-            where:{
-                userId: tokenUserId,
-                postId,
-            },
-         });
-         res.status(200).json({message : "post saved list"});
-       }
-       
-
-    }catch(err){
-        console.log(err);
-        res.status(500).json({message: "Failed to delete users!"});
+    if (id !== tokenUserId) {
+      return sendResponse(res, 403, "Not Authorized !");
     }
-}
 
-export const profilePosts = async (req,res) =>{
-    const tokenUserId = req.params.userId;
+    await prisma.user.delete({
+      where: { id },
+    });
+    sendResponse(res, 200, "User Deleted Successfully");
+  } catch (error) {
+    console.log(error);
+    sendResponse(res, 500, " Failed to Delete user  !");
+  }
+};
+export const savePost = async (req, res) => {
+  const postId = req.body.postId;
+  const tokenUserId = req.userId;
 
-    try{
-        const userPosts = await prisma.post.findMany({
-            where:{userId:tokenUserId},
-            include:{
-                post:true,
-            },
-        });
+  try {
+    // Check if the saved post already exists
+    const savedPost = await prisma.savedPost.findUnique({
+      where: {
+        userId_postId: {
+          userId: tokenUserId,
+          postId,
+        },
+      },
+    });
 
-        const savedPosts = saved.map((item) => item.postId);
-
-        res.status(200).json({userPosts,savedPosts});
-
-    }catch(err){
-        console.log(err);
-        res.status(500).json({message: "Failed to get Profile post!"});
+    // If it exists, delete it
+    if (savedPost) {
+      await prisma.savedPost.delete({
+        where: {
+          id: savedPost.id,
+        },
+      });
+      sendResponse(res, 200, "Post removed from saved list");
+    } else {
+      // If it doesn't exist, create a new saved post
+      await prisma.savedPost.create({
+        data: {
+          userId: tokenUserId,
+          postId,
+        },
+      });
+      sendResponse(res, 200, "Post saved successfully");
     }
-}
+  } catch (error) {
+    console.error(error);
+    sendResponse(res, 500, "Failed to save post");
+  }
+};
 
-export const getNotificationNumber = async (req,res) => {
-     const tokenUserId = req.userId;
-     try{
-        const number = await prisma.chat.count({
-            where:{
-                userIDs:{
-                    hasSome: [tokenUserId],
-                },
-                NOT: {
-                    seenBy: {
-                        hasSome: [tokenUserId],
-                    }
-                }
-            }
-        })
-        res.status(200).json(number);
-     }catch(err){
-        console.log(err);
-        res.status(500).json({message: "Failed to get Profile post!"});
-     }
-}
+export const profilePosts = async (req, res) => {
+  const tokenUserId = req.userId;
+  try {
+    const userPosts = await prisma.post.findMany({
+      where: { userId: tokenUserId },
+    });
+    const saved = await prisma.savedPost.findMany({
+      where: { userId: tokenUserId },
+      include: {
+        post: true,
+      },
+    });
+
+    const savedPosts = saved.map((item) => item.post);
+    res.status(200).json({ userPosts, savedPosts });
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({ message: "Failed to get profile posts!" });
+  }
+};
+
+export const getNotificationNumber = async (req, res) => {
+  const tokenUserId = req.userId;
+  try {
+    const number = await prisma.chat.count({
+      where: {
+        userIDs: {
+          hasSome: [tokenUserId],
+        },
+        NOT: {
+          seenBy: {
+            hasSome: [tokenUserId],
+          },
+        },
+      },
+    });
+    res.status(200).json(number);
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({ message: "Failed to get profile posts!" });
+  }
+};

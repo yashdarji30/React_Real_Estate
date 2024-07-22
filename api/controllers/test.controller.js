@@ -1,18 +1,25 @@
 import jwt from "jsonwebtoken";
-export const shouldeBeLoggedIn = async (req,res) => {
- console.log(req.userId)
- res.status(200).json({message: "Ypu are Authenticated!"})
-}
+import sendResponse from "../lib/responseHelper.js";
+import "dotenv/config";
 
-export const shouldBeAdmin = async (req,res) => {
-    const token = req.cookies.token;
+export const shouldBeLoggedIn = async (req, res) => {
+  console.log(req.userId);
 
-    if(!token) return res.status(401).json({message: "Not Authenticated"});
-     jwt.verify(token,process.env.JWT_SECRET_KEY, async(err,payload) => {
-        if(err) return res.status(401).json({message: "Token is not valid "});
-        if(!payload.isAdmin){
-            return res.status(403).json({message: "You Are Not Admin"});
-        }
-     })
-    res.status(200).json({message: "You Are Authenticated!"});
-}
+  sendResponse(res, 200, "You are authenticated");
+};
+
+export const shouldBeAdmin = async (req, res) => {
+  const token = req.cookies.token;
+
+  if (!token) return sendResponse(res, 401, "Not Authenticated ! ");
+
+  jwt.verify(token, process.env.JWT_SECRET_KEY, async (err, payload) => {
+    if (err) return sendResponse(res, 403, "Token is not valid");
+
+    if (!payload.isAdmin) {
+      return sendResponse(res, 403, "Not authorized");
+    }
+  });
+
+  sendResponse(res, 200, "You are authenticated");
+};

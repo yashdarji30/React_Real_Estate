@@ -1,24 +1,30 @@
 
 import express from "express";
 import {
-  deleteUser, 
+  deleteUsers,
+  getNotificationNumber,
   getUser,
   getUsers,
-  updatedUser,
-  savePost,
   profilePosts,
-  getNotificationNumber
+  savePost,
+  updateUsers,
 } from "../controllers/user.controller.js";
-import {verifyToken} from "../middlewares/verifyToken.js";
+import { verifyToken } from "../middleware/verifyToken.js";
 
 const router = express.Router();
 
-router.get("/", getUsers);
-router.get("/:id", verifyToken, getUser);
-router.put("/:id", verifyToken, updatedUser);
-router.delete("/:id", verifyToken, deleteUser);
+router.get("/all", getUsers);
+
+// router.get("/:id", getUser);
+
+router.put("/:id", verifyToken, updateUsers);
+
+router.delete("/:id", verifyToken, deleteUsers);
+
 router.post("/save", verifyToken, savePost);
+
 router.get("/profilePosts", verifyToken, profilePosts);
+
 router.get("/notification", verifyToken, getNotificationNumber);
 
 export default router;
